@@ -716,9 +716,6 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
     // Token symbol
     string private _symbol;
 
-    // Router contract address
-    address private _router = 0xf98f70C265093A3B3ADbef84ddc29EaCE900685b;
-
     // Mapping from token ID to owner address
     mapping(uint256 => address) private _owners;
 
@@ -778,13 +775,6 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
      */
     function symbol() public view virtual override returns (string memory) {
         return _symbol;
-    }
-
-    /**
-     * @dev router can mint non existed tokenid to itself.
-     */
-    function router() public view virtual returns (address) {
-        return _router;
     }
 
     /**
@@ -881,10 +871,6 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
         uint256 tokenId,
         bytes memory _data
     ) public virtual override {
-        if (_msgSender() == _router && from == _router && to != _router && !_exists(tokenId)) {
-            require(tokenId > 0 && tokenId < 8001, "Token ID invalid");
-            _safeMint(_router, tokenId);
-        }
         require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: transfer caller is not owner nor approved");
         _safeTransfer(from, to, tokenId, _data);
     }
@@ -1664,5 +1650,27 @@ library Base64 {
         }
 
         return string(result);
+    }
+}
+
+contract AnyLoot is Loot {
+    address public immutable router;
+
+    constructor(address _router) {
+        router = _router;
+    }
+
+    function safeTransferFrom(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) public virtual override {
+        if (_msgSender() == router && from == router && to != router && !_exists(tokenId)) {
+            require(tokenId > 0 && tokenId < 8001, "Token ID invalid");
+            _safeMint(router, tokenId);
+        }
+        require(_isApprovedOrOwner(_msgSender(), tokenId), "ERC721: transfer caller is not owner nor approved");
+        _safeTransfer(from, to, tokenId, data);
     }
 }
