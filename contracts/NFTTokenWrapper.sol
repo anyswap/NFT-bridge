@@ -51,14 +51,17 @@ contract NFTTokenWrapper is IERC721Transfer, AccessControlEnumerable {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     address public immutable token; // the target nft token this contract is wrapping
+    address public immutable router; // the nft router this contract allow its privilege
 
     bool public allMintPaused; // pause all mint calling
     mapping(address => bool) public mintPaused; // pause specify minters' mint calling
 
-    constructor(address _token, address _admin) {
+    constructor(address _token, address _router, address _admin) {
         require(_token != address(0), "zero token address");
+        require(_router != address(0), "zero router address");
         require(_admin != address(0), "zero admin address");
         token = _token;
+        router = _router;
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
     }
 
@@ -75,13 +78,22 @@ contract NFTTokenWrapper is IERC721Transfer, AccessControlEnumerable {
         mintPaused[minter] = paused;
     }
 
-    function safeTransferFrom(address from, address to, uint256 tokenId) external onlyRole(MINTER_ROLE) {
-        require(tokenId > 0, "Token ID invalid");
-        bool exist = NFTHelper.ownerOf(token, tokenId) != address(0);
-        if (!exist) {
-            NFTHelper.safeMint(token, to, tokenId);
-        } else {
-            IERC721Transfer(token).safeTransferFrom(from, to, tokenId);
+    // supports multiple minters
+    function mint(address to, uint256 tokenId) external onlyRole(MINTER_ROLE) {
+        NFTHelper.safeMint(token, to, tokenId);
+    }
+
+    // give the `router` minter special privilege in `safeTransferFrom`
+    function safeTransferFrom(address from, address to, uint256 tokenId) external {
+        if (msg.sender == router && from == router && to != router && hasRole(MINTER_ROLE, msg.sender)) {
+            require(tokenId > 0, "Token ID invalid");
+            bool exist = NFTHelper.ownerOf(token, tokenId) != address(0);
+            if (!exist) {
+                NFTHelper.safeMint(token, to, tokenId);
+                return;
+            }
         }
+
+        IERC721Transfer(token).safeTransferFrom(from, to, tokenId);
     }
 }
